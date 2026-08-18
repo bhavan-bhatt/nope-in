@@ -457,6 +457,24 @@ def _join_rates(options_df: pd.DataFrame, rates_df: pd.DataFrame) -> pd.DataFram
     return merged
 
 
+def _apply_bsm_filter(name: str, mask: pd.Series, frame: pd.DataFrame) -> pd.DataFrame:
+    dropped = (~mask).sum()
+    if dropped:
+        log.info("BSM filter '%s': dropped %d / %d rows", name, dropped, len(frame))
+    return frame.loc[mask].copy()
+
+
+def _compute_atm_iv_table(df: pd.DataFrame) -> pd.DataFrame:
+    """ATM implied vol per (date, symbol, expiry) from nearest-to-spot strike."""
+    return (
+        df.assign(strike_dist=(df["strike"] - df["spot"]).abs())
+        .sort_values(["date", "symbol", "expiry_date", "strike_dist"])
+        .groupby(["date", "symbol", "expiry_date"], as_index=False)
+        .first()[["date", "symbol", "expiry_date", "implied_vol"]]
+        .rename(columns={"implied_vol": "atm_iv"})
+    )
+
+
 def compute_bsm_residual(
     options_df: pd.DataFrame,
     rates_df: pd.DataFrame,
@@ -465,11 +483,16 @@ def compute_bsm_residual(
 ) -> pd.DataFrame:
     """
     Enrich options chain with IV, BSM price, Greeks, and filtered training rows.
+
+    ``implied_vol`` is the contract's market-implied vol (inverted from settle).
+    ``bsm_price`` uses the exogenous ATM IV for that expiry — NOT contract IV —
+    so ``bsm_error`` captures genuine smile/skew/event mispricing vs flat-vol BSM.
     """
     df = _prepare_options_frame(options_df, underlying_df=underlying_df)
     n0 = len(df)
     df = _join_rates(df, rates_df)
 
+    # Contract market IV (for greeks, surface, and IV features)
     df["implied_vol"] = implied_vol_from_price(
         df["settle_price"].values,
         df["spot"].values,
@@ -480,12 +503,20 @@ def compute_bsm_residual(
         q=q,
     )
 
+    df = _apply_bsm_filter("dte_zero", df["dte"] > 0, df)
+    df = _apply_bsm_filter("iv_nan", df["implied_vol"].notna(), df)
+
+    atm_iv = _compute_atm_iv_table(df)
+    df = df.merge(atm_iv, on=["date", "symbol", "expiry_date"], how="left")
+
+    # BSM baseline: flat ATM vol for the expiry (exogenous — no contract IV round-trip)
+    bsm_sigma = df["atm_iv"].fillna(0.2).values
     df["bsm_price"] = bsm_price(
         df["spot"].values,
         df["strike"].values,
         df["T"].values,
         df["rate_interpolated_dte"].values,
-        df["implied_vol"].fillna(0.2).values,
+        bsm_sigma,
         df["option_type"].values,
         q=q,
     )
@@ -513,36 +544,19 @@ def compute_bsm_residual(
     df["is_weekly_expiry"] = df["dte"] <= 7
     df["is_monthly_expiry"] = df["dte"] > 7
 
-    # Filtering pipeline
-    def _filter(name: str, mask: pd.Series, frame: pd.DataFrame) -> pd.DataFrame:
-        dropped = (~mask).sum()
-        if dropped:
-            log.info("BSM filter '%s': dropped %d / %d rows", name, dropped, len(frame))
-        return frame.loc[mask].copy()
-
     vol_col = "contracts" if "contracts" in df.columns else None
     oi_col = "open_interest" if "open_interest" in df.columns else None
     if vol_col and oi_col:
-        df = _filter(
+        df = _apply_bsm_filter(
             "zero_volume_and_oi",
             ~((df[vol_col] == 0) & (df[oi_col] == 0)),
             df,
         )
 
-    df = _filter("dte_zero", df["dte"] > 0, df)
-    df = _filter("iv_nan", df["implied_vol"].notna(), df)
-
-    atm_iv = (
-        df.assign(strike_dist=(df["strike"] - df["spot"]).abs())
-        .sort_values(["date", "symbol", "strike_dist"])
-        .groupby(["date", "symbol"], as_index=False)
-        .first()[["date", "symbol", "implied_vol"]]
-        .rename(columns={"implied_vol": "atm_iv"})
-    )
-    df = df.merge(atm_iv, on=["date", "symbol"], how="left")
-    outlier_mask = df["bsm_error"].abs() <= 5.0 * df["atm_iv"].fillna(0.2)
-    df = _filter("bsm_error_outlier", outlier_mask, df)
-    df = _filter("moneyness_band", (df["moneyness"] >= 0.70) & (df["moneyness"] <= 1.30), df)
+    # Drop extreme outliers (>5 vol points in vega-normalised space)
+    outlier_mask = df["bsm_error_norm"].abs() <= 5.0
+    df = _apply_bsm_filter("bsm_error_outlier", outlier_mask.fillna(True), df)
+    df = _apply_bsm_filter("moneyness_band", (df["moneyness"] >= 0.70) & (df["moneyness"] <= 1.30), df)
 
     log.info("compute_bsm_residual: %d → %d rows (from %d)", len(df), len(df), n0)
     return df.reset_index(drop=True)

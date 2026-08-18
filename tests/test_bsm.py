@@ -185,12 +185,23 @@ class TestComputeBSMResidual:
 
     def test_enriches_columns(self, sample_chain, sample_rates):
         result = compute_bsm_residual(sample_chain, sample_rates)
-        for col in ["implied_vol", "bsm_price", "delta", "vega", "bsm_error", "moneyness"]:
+        for col in ["implied_vol", "atm_iv", "bsm_price", "delta", "vega", "bsm_error", "moneyness"]:
             assert col in result.columns
 
-    def test_bsm_error_near_zero(self, sample_chain, sample_rates):
+    def test_bsm_error_near_zero_at_atm(self, sample_chain, sample_rates):
+        """ATM rows match when settle is priced at flat vol (same as ATM IV input)."""
         result = compute_bsm_residual(sample_chain, sample_rates)
-        assert result["bsm_error"].abs().max() < 0.01
+        atm = result[result["strike"] == 22000]
+        assert atm["bsm_error"].abs().max() < 0.05
+
+    def test_bsm_error_nonzero_with_smile(self, sample_chain, sample_rates):
+        """OTM premium vs flat ATM-vol BSM produces meaningful bsm_error."""
+        chain = sample_chain.copy()
+        chain.loc[chain["strike"] == 23000, "settle_price"] *= 1.10
+        result = compute_bsm_residual(chain, sample_rates)
+        otm = result[result["strike"] == 23000]
+        assert otm["bsm_error"].abs().max() > 1.0
+        assert otm["bsm_error"].mean() > 0
 
     def test_filters_zero_liquidity(self, sample_chain, sample_rates):
         sample_chain.loc[0, "contracts"] = 0

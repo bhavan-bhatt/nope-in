@@ -13,6 +13,8 @@ import pytorch_lightning as pl
 import torch
 from torch.utils.data import DataLoader, Dataset
 
+from nope_in.utils.device import supports_pin_memory
+
 
 def load_feature_metadata(metadata_path: Path | str) -> dict:
     path = Path(metadata_path)
@@ -178,7 +180,7 @@ class NOPEDataModule(pl.LightningDataModule):
             shuffle=True,
             num_workers=self.num_workers,
             collate_fn=_collate_batch,
-            pin_memory=torch.cuda.is_available(),
+            pin_memory=supports_pin_memory(),
         )
 
     def val_dataloader(self) -> DataLoader:
@@ -189,7 +191,7 @@ class NOPEDataModule(pl.LightningDataModule):
             shuffle=False,
             num_workers=self.num_workers,
             collate_fn=_collate_batch,
-            pin_memory=torch.cuda.is_available(),
+            pin_memory=supports_pin_memory(),
         )
 
     def test_dataloader(self) -> DataLoader:
@@ -200,7 +202,7 @@ class NOPEDataModule(pl.LightningDataModule):
             shuffle=False,
             num_workers=self.num_workers,
             collate_fn=_collate_batch,
-            pin_memory=torch.cuda.is_available(),
+            pin_memory=supports_pin_memory(),
         )
 
     def cal_dataloader(self) -> DataLoader | None:
@@ -212,5 +214,5 @@ class NOPEDataModule(pl.LightningDataModule):
             shuffle=False,
             num_workers=self.num_workers,
             collate_fn=_collate_batch,
-            pin_memory=torch.cuda.is_available(),
+            pin_memory=supports_pin_memory(),
         )

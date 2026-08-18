@@ -22,7 +22,6 @@ import numpy as np
 import pandas as pd
 
 from nope_in.features.bsm import implied_vol_from_price
-from nope_in.training.dataset import _moneyness_bucket
 
 MONEYNESS_BUCKETS = ("DITM", "ITM", "ATM", "OTM", "DOTM")
 REGIME_IDS = (0, 1, 2, 3)
@@ -67,10 +66,26 @@ def _masked_mae(y_true: np.ndarray, y_pred: np.ndarray, mask: np.ndarray) -> flo
     return _mae(y_true[mask], y_pred[mask])
 
 
+def _moneyness_buckets_from_df(df: pd.DataFrame) -> np.ndarray:
+    """Vectorised moneyness bucket labels (matches dataset._moneyness_bucket)."""
+    buckets = np.full(len(df), "OTHER", dtype=object)
+    for col, label in (
+        ("is_DITM", "DITM"),
+        ("is_ITM", "ITM"),
+        ("is_ATM", "ATM"),
+        ("is_OTM", "OTM"),
+        ("is_DOTM", "DOTM"),
+    ):
+        if col in df.columns:
+            mask = df[col].astype(bool).to_numpy()
+            buckets[mask] = label
+    return buckets
+
+
 def build_eval_metadata(df: pd.DataFrame) -> pd.DataFrame:
     """Build evaluation metadata frame from a feature parquet."""
     meta = pd.DataFrame(index=df.index)
-    meta["moneyness_bucket"] = [_moneyness_bucket(row) for _, row in df.iterrows()]
+    meta["moneyness_bucket"] = _moneyness_buckets_from_df(df)
 
     regime_cols = [c for c in df.columns if c.startswith("regime_p")]
     if regime_cols:

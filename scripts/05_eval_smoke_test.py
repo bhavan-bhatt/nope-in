@@ -98,7 +98,6 @@ def main() -> None:
     cfg.training.max_epochs = 3
     cfg.training.cal_fraction = 0.0
     cfg.model.hidden_dim = 64
-    cfg.model.input_dim = len(feature_cols)
 
     datamodule = NOPEDataModule(
         features_dir=PROJECT_ROOT / cfg.training.features_dir,

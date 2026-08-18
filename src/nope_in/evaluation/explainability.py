@@ -26,8 +26,14 @@ import pandas as pd
 import torch
 import torch.nn as nn
 
+from nope_in.utils.device import device_label
+
 if TYPE_CHECKING:
     from nope_in.models.nope import NOPEIndia
+
+
+def _shap_progress(message: str) -> None:
+    print(f"  SHAP | {message}", flush=True)
 
 
 class _SHAPForwardModel(nn.Module):
@@ -85,13 +91,21 @@ def compute_shap_values(
     ex_x = torch.as_tensor(X_explain, dtype=torch.float32, device=device)
     ex_bsm = torch.as_tensor(bsm_explain, dtype=torch.float32, device=device).reshape(-1, 1)
 
+    _shap_progress(
+        f"Initialising DeepExplainer on {device_label(device)} ({device}) "
+        f"({len(X_background)} background × {len(X_explain)} explain samples) …"
+    )
     explainer = shap.DeepExplainer(wrapper, [bg_x, bg_bsm])
     try:
+        _shap_progress("Computing SHAP values (DeepExplainer) — please wait …")
         shap_output = explainer.shap_values([ex_x, ex_bsm], check_additivity=False)
+        _shap_progress("DeepExplainer finished.")
     except (AssertionError, RuntimeError):
         # LayerNorm/GELU in SharedTrunk are not fully supported by DeepExplainer.
+        _shap_progress("DeepExplainer unsupported; falling back to GradientExplainer …")
         explainer = shap.GradientExplainer(wrapper, [bg_x, bg_bsm])
         shap_output = explainer.shap_values([ex_x, ex_bsm])
+        _shap_progress("GradientExplainer finished.")
 
     if isinstance(shap_output, list):
         feature_shap = shap_output[0]
@@ -108,6 +122,7 @@ def compute_shap_values(
             output_dir / "shap_values.parquet",
             index=False,
         )
+        _shap_progress(f"Saved raw SHAP arrays → {output_dir}")
 
     _ = max_evals  # reserved for KernelExplainer fallback if needed later
     return feature_shap

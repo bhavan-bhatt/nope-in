@@ -4,9 +4,11 @@ metadata_path: artifacts/feature_metadata.json
 output_dir: artifacts
 batch_size: 2048
 num_workers: 0
+device: auto  # auto | mps | cuda | cpu — auto picks Apple MPS on Mac M2/M3
 
 shap:
   enabled: true
+  device: auto  # auto runs SHAP on CPU when inference uses MPS (DeepExplainer limitation)
   background_samples: 1000
   explain_samples: 2000
   max_evals: 2000

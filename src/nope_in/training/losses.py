@@ -41,6 +41,31 @@ def atm_weighted_huber_loss(
     return (weights * huber).mean()
 
 
+def magnitude_weighted_huber_loss(
+    y_pred: torch.Tensor,
+    y_true: torch.Tensor,
+    delta: float = 8.0,
+    weight_power: float = 1.0,
+    weight_scale: float = 15.0,
+    min_weight: float = 1.0,
+) -> torch.Tensor:
+    """
+    Huber loss upweighted by target magnitude.
+
+    The BSM-error target is heteroscedastic: near-zero for weekly/ATM contracts,
+    tens of rupees for long-dated/DITM/deep-skew contracts. A flat small-delta
+    Huber loss degenerates to plain L1 across that whole range and trains the
+    network towards the conditional *median* rather than the mean — good for
+    MAE, bad for RMSE (which is what BSM is actually benchmarked on). Weighting
+    each sample by its own true-error magnitude keeps the loss quadratic-ish
+    (via a larger ``delta``) while forcing gradient budget onto the large-error
+    tail instead of being dominated by the abundant near-zero examples.
+    """
+    huber = _huber_elementwise(y_pred, y_true, delta)
+    weights = min_weight + (y_true.abs() / weight_scale).pow(weight_power)
+    return (weights * huber).mean()
+
+
 def vega_normalised_loss(
     y_pred: torch.Tensor,
     y_true: torch.Tensor,

@@ -1,4 +1,4 @@
-input_dim: 109
+# input_dim is derived from feature_metadata.json at train time (currently 110 with atm_iv)
 hidden_dim: 256
 n_experts: 4
 dropout: 0.1

@@ -6,9 +6,13 @@ learning_rate_trunk: 1.0e-4
 learning_rate_experts: 3.0e-4
 weight_decay: 1.0e-4
 lambda_aux: 0.1
-huber_delta: 0.5
+loss_type: magnitude_weighted  # magnitude_weighted (default, RMSE-targeted) | atm_weighted (legacy)
+huber_delta: 8.0  # scaled to typical bsm_error magnitude (was 0.5 — degenerated to plain L1/MAE everywhere)
+weight_power: 1.0
+weight_scale: 15.0
+min_weight: 1.0
 atm_sigma: 0.05
-atm_weight: 5.0
+atm_weight: 1.5  # only used when loss_type=atm_weighted
 early_stopping_patience: 15
 gradient_clip: 1.0
 lr_patience: 5
@@ -21,3 +25,4 @@ conformal_alpha: 0.10
 conformal_min_samples: 50
 checkpoint_name: nope_best.pt
 log_every_n_steps: 50
+device: auto  # auto | mps | cuda | cpu — auto picks Apple MPS on Mac M2/M3

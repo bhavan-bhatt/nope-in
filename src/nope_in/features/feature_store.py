@@ -29,6 +29,7 @@ FEATURE_GROUPS = {
         "is_monthly_expiry",
         "expiry_week_of_month",
         "days_to_current_weekly_expiry",
+        "is_put",
     ],
     "bsm_greeks": [
         "delta",
@@ -106,12 +107,14 @@ BOOLEAN_FEATURES = {
     "is_ATM",
     "is_OTM",
     "is_DOTM",
+    "is_put",
 }
 
 INTERACTION_FEATURES = [
     "moneyness_x_log_dte",
     "delta_x_vix",
     "vol_x_vix",
+    "is_put_x_skew",
 ]
 
 
@@ -237,6 +240,9 @@ def build_feature_matrix(
     surf = surface_df.copy()
     surf["date"] = pd.to_datetime(surf["date"]).dt.normalize()
     surf_cols = ["date", "symbol"] + [c for c in surf.columns if c.startswith(("atm_iv", "iv_", "surface_emb_"))]
+    # bsm_df carries per-expiry atm_iv used for bsm_price; surface provides feature atm_iv
+    if "atm_iv" in df.columns and "atm_iv" in surf.columns:
+        df = df.drop(columns=["atm_iv"])
     df = df.merge(surf[surf_cols], on=["date", "symbol"], how="left")
 
     if regime_df is not None and not regime_df.empty:
@@ -251,6 +257,11 @@ def build_feature_matrix(
     df = _add_contract_calendar_features(df, events)
     df = _add_moneyness_dummies(df)
 
+    # Explicit call/put encoding — previously absent, forcing the network to
+    # infer option side indirectly from delta sign. Index puts and calls carry
+    # systematically different skew premia; give the model the label directly.
+    df["is_put"] = df["option_type"].astype(str).str.upper().eq("PE")
+
     if "iv_rv_spread" in selected_cols:
         if "iv_rv_spread" not in df.columns or df["iv_rv_spread"].isna().all():
             df["iv_rv_spread"] = df.get("atm_iv", df.get("implied_vol")) - df.get("realised_vol_21d")
@@ -258,6 +269,8 @@ def build_feature_matrix(
     df["moneyness_x_log_dte"] = df["moneyness"] * df["log_dte"]
     df["delta_x_vix"] = df["delta"] * df["vix_close"]
     df["vol_x_vix"] = df["implied_vol"] * df["vix_close"]
+    skew_col = df["iv_skew_25d"] if "iv_skew_25d" in df.columns else 0.0
+    df["is_put_x_skew"] = df["is_put"].astype(np.float32) * pd.Series(skew_col, index=df.index).fillna(0.0)
 
     necessary_present = NECESSARY_FEATURES.intersection(df.columns)
     missing_necessary = NECESSARY_FEATURES - necessary_present

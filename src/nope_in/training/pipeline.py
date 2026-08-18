@@ -18,6 +18,7 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from nope_in.models.nope import NOPEIndia
 from nope_in.training.dataset import NOPEDataModule, load_feature_metadata
 from nope_in.training.trainer import NOPELightningModule
+from nope_in.utils.device import device_label, resolve_lightning_accelerator
 
 log = logging.getLogger(__name__)
 
@@ -32,7 +33,15 @@ def build_model(cfg: DictConfig, feature_columns: list[str]) -> NOPEIndia:
     from nope_in.training.dataset import get_regime_feature_indices
 
     model_cfg = cfg.model
-    input_dim = int(model_cfg.get("input_dim", len(feature_columns)))
+    input_dim = len(feature_columns)
+    configured = int(model_cfg.get("input_dim", input_dim))
+    if configured != input_dim:
+        log.warning(
+            "cfg.model.input_dim=%d but feature metadata has %d columns; using %d",
+            configured,
+            input_dim,
+            input_dim,
+        )
     regime_indices = get_regime_feature_indices(feature_columns)
 
     return NOPEIndia(
@@ -94,9 +103,12 @@ def run_training_pipeline(cfg: DictConfig) -> dict:
         ),
     ]
 
+    accelerator = resolve_lightning_accelerator(str(cfg.training.get("device", "auto")))
+    log.info("Training on %s (accelerator=%s)", device_label(torch.device(accelerator)), accelerator)
+
     trainer = pl.Trainer(
         max_epochs=int(cfg.training.get("max_epochs", 200)),
-        accelerator="auto",
+        accelerator=accelerator,
         devices=1,
         gradient_clip_val=float(cfg.training.get("gradient_clip", 1.0)),
         callbacks=callbacks,

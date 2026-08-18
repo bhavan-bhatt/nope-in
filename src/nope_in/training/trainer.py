@@ -14,7 +14,7 @@ import torch.nn as nn
 from nope_in.features.bsm import implied_vol_from_price
 from nope_in.models.conformal import calibrate_mondrian, evaluate_coverage
 from nope_in.models.nope import NOPEIndia
-from nope_in.training.losses import atm_weighted_huber_loss
+from nope_in.training.losses import atm_weighted_huber_loss, magnitude_weighted_huber_loss
 
 
 class NOPELightningModule(pl.LightningModule):
@@ -30,6 +30,10 @@ class NOPELightningModule(pl.LightningModule):
         self.huber_delta = float(config.get("huber_delta", 0.5))
         self.atm_sigma = float(config.get("atm_sigma", 0.05))
         self.atm_weight = float(config.get("atm_weight", 5.0))
+        self.loss_type = str(config.get("loss_type", "magnitude_weighted"))
+        self.weight_power = float(config.get("weight_power", 1.0))
+        self.weight_scale = float(config.get("weight_scale", 15.0))
+        self.min_weight = float(config.get("min_weight", 1.0))
         self.val_iv_every_n_epochs = int(config.get("val_iv_every_n_epochs", 5))
 
         self._val_sse = torch.tensor(0.0)
@@ -50,6 +54,25 @@ class NOPELightningModule(pl.LightningModule):
 
         self.conformal_quantiles: dict[int, float] | None = None
 
+    def _primary_loss(self, y_pred: torch.Tensor, y_true: torch.Tensor, moneyness: torch.Tensor) -> torch.Tensor:
+        if self.loss_type == "atm_weighted":
+            return atm_weighted_huber_loss(
+                y_pred,
+                y_true,
+                moneyness,
+                delta=self.huber_delta,
+                atm_sigma=self.atm_sigma,
+                atm_weight=self.atm_weight,
+            )
+        return magnitude_weighted_huber_loss(
+            y_pred,
+            y_true,
+            delta=self.huber_delta,
+            weight_power=self.weight_power,
+            weight_scale=self.weight_scale,
+            min_weight=self.min_weight,
+        )
+
     def _compute_losses(
         self,
         batch: dict[str, torch.Tensor],
@@ -57,25 +80,11 @@ class NOPELightningModule(pl.LightningModule):
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         y_true = batch["bsm_error"]
         y_pred = outputs["bsm_error_pred"]
-        primary = atm_weighted_huber_loss(
-            y_pred,
-            y_true,
-            batch["moneyness"],
-            delta=self.huber_delta,
-            atm_sigma=self.atm_sigma,
-            atm_weight=self.atm_weight,
-        )
+        primary = self._primary_loss(y_pred, y_true, batch["moneyness"])
 
         expert_outputs = outputs["expert_outputs"]
         aux_losses = [
-            atm_weighted_huber_loss(
-                expert_outputs[:, k],
-                y_true,
-                batch["moneyness"],
-                delta=self.huber_delta,
-                atm_sigma=self.atm_sigma,
-                atm_weight=self.atm_weight,
-            )
+            self._primary_loss(expert_outputs[:, k], y_true, batch["moneyness"])
             for k in range(expert_outputs.shape[1])
         ]
         auxiliary = torch.stack(aux_losses).mean()

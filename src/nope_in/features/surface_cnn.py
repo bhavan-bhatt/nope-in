@@ -16,6 +16,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from nope_in.utils.device import resolve_device
+
 log = logging.getLogger(__name__)
 
 TENORS = ["W1", "W2", "M1", "M2"]
@@ -101,7 +103,7 @@ def pretrain_surface_encoder(
     Saves encoder state dict to output_path.
     """
     if device is None:
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        device = str(resolve_device("auto"))
 
     x, mask = _surfaces_to_tensors(surfaces)
     model = IVSurfaceAutoencoder(embedding_dim=embedding_dim).to(device)
@@ -164,7 +166,7 @@ def encode_surfaces_to_parquet(
     Run frozen encoder on all surfaces; append surface_emb_0..63 columns.
     """
     if device is None:
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        device = str(resolve_device("auto"))
 
     encoder = encoder.to(device)
     encoder.eval()
