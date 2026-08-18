@@ -1,0 +1,11 @@
+# @package _global_
+regime:
+  n_states: 4
+  n_iter: 200
+  n_restarts: 10
+  random_seed: 42
+  fit_start: "2018-01-01"
+  fit_end: "2021-12-31"
+  symbols:
+    - NIFTY
+    - BANKNIFTY

@@ -11,7 +11,7 @@
 | **Market** | NSE — Index Options (NIFTY 50, BANKNIFTY) |
 | **Model** | Regime-Conditioned Residual Neural Network (MoE) |
 | **Novel Contribution** | BSM error anatomy in Indian markets + HMM regime gating + conformal prediction |
-| **Status** | Phase 0 + Phase 1 complete — Phase 2 feature engineering implemented |
+| **Status** | Phase 0–3 complete — Phase 4 model training implemented |
 
 ---
 
@@ -135,6 +135,14 @@ make validate
 make features-smoke
 make features
 
+# Phase 3 — regime detection (smoke: 3 restarts; full: 10 restarts, ~2–5 min)
+make regime-smoke
+make regime
+
+# Phase 4 — model training (smoke: synthetic 3 epochs; full: early-stop ~80–120 epochs)
+make train-smoke
+make train
+
 # Run tests
 make test
 ```
@@ -143,6 +151,7 @@ Processed outputs land in `data/processed/`:
 - `options_chain.parquet` — NIFTY/BANKNIFTY index options (OPTIDX)
 - `underlying_ohlcv.parquet` — NIFTY + BANKNIFTY daily OHLCV
 - `india_vix.parquet` — India VIX with basic features
+- `regime_labels.parquet` — HMM regime probabilities (Phase 3)
 - `rates.parquet` — RBI rates (from `data/manual/rbi_rates_seed.csv`)
 - `events_calendar.parquet` — NSE expiries + RBI/Budget/FOMC proximity features
 

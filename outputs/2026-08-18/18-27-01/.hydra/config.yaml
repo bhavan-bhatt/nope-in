@@ -1,0 +1,84 @@
+data:
+  start_date: '2018-01-01'
+  end_date: '2023-12-31'
+  symbols:
+  - NIFTY
+  - BANKNIFTY
+  bhav:
+    delay_seconds: 1.0
+    max_retries: 3
+  yfinance:
+    indices:
+    - symbol: ^NSEI
+      name: NIFTY
+    - symbol: ^NSEBANK
+      name: BANKNIFTY
+    - symbol: ^INDIAVIX
+      name: INDIAVIX
+  paths:
+    raw_dir: data/raw
+    manual_dir: data/manual
+    processed_dir: data/processed
+regime:
+  n_states: 4
+  n_iter: 200
+  n_restarts: 10
+  random_seed: 42
+  fit_start: '2018-01-01'
+  fit_end: '2021-12-31'
+  symbols:
+  - NIFTY
+  - BANKNIFTY
+model:
+  input_dim: 109
+  hidden_dim: 256
+  n_experts: 4
+  dropout: 0.1
+training:
+  features_dir: data/features
+  metadata_path: artifacts/feature_metadata.json
+  batch_size: 2048
+  max_epochs: 200
+  learning_rate_trunk: 0.0001
+  learning_rate_experts: 0.0003
+  weight_decay: 0.0001
+  lambda_aux: 0.1
+  huber_delta: 0.5
+  atm_sigma: 0.05
+  atm_weight: 5.0
+  early_stopping_patience: 15
+  gradient_clip: 1.0
+  lr_patience: 5
+  lr_factor: 0.5
+  min_lr: 1.0e-06
+  num_workers: 4
+  cal_fraction: 0.5
+  val_iv_every_n_epochs: 5
+  conformal_alpha: 0.1
+  conformal_min_samples: 50
+  checkpoint_name: nope_best.pt
+  log_every_n_steps: 50
+evaluation:
+  checkpoint_path: artifacts/nope_best.pt
+  features_dir: data/features
+  metadata_path: artifacts/feature_metadata.json
+  output_dir: artifacts
+  batch_size: 2048
+  num_workers: 0
+  shap:
+    enabled: true
+    background_samples: 500
+    explain_samples: 1000
+    max_evals: 2000
+    seed: 42
+mlflow:
+  experiment_name: nope-in
+  run_name: nope_train
+pipeline:
+  validate: true
+  skip_bhav_download: false
+features:
+  train_end: '2021-12-31'
+  val_end: '2022-12-31'
+  cnn_epochs: 200
+  feature_groups: null

@@ -1,0 +1,4 @@
+input_dim: 109
+hidden_dim: 256
+n_experts: 4
+dropout: 0.1

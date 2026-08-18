@@ -1,5 +1,11 @@
 defaults:
   - data: tier1
+  - regime: default
+  - model: default
+  - training: default
+  - evaluation: default
+  - mlflow: default
+  - _self_
 
 data:
   symbols:
