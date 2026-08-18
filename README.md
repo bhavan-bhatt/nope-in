@@ -11,7 +11,7 @@
 | **Market** | NSE — Index Options (NIFTY 50, BANKNIFTY) |
 | **Model** | Regime-Conditioned Residual Neural Network (MoE) |
 | **Novel Contribution** | BSM error anatomy in Indian markets + HMM regime gating + conformal prediction |
-| **Status** | 🚧 Setup — implementation not yet started |
+| **Status** | Phase 0 + Phase 1 complete — Phase 2 feature engineering implemented |
 
 ---
 
@@ -114,29 +114,40 @@ nope-in/
 
 ---
 
-## Prerequisites (Phase 0)
-
-Before implementation begins, the following will be configured:
+## Quick Start (Phase 0 + Phase 1)
 
 ```bash
-# Environment
-pip install poetry
-poetry init
-poetry add torch torchmetrics lightning pandas polars pyarrow yfinance nsepy
-poetry add hmmlearn scipy quantlib py-vollib shap hydra-core mlflow streamlit plotly
-poetry add pytest mypy black isort pre-commit great-expectations
+cd nope-in
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e . pytest
 
-# Data versioning
-dvc init
+# Tier 0 smoke test (Jan 2023, ~22 trading days)
+make data-smoke
 
-# Common commands (Makefile)
-make data    # run data pipeline
-make train   # train NOPE-IN
-make test    # run pytest suite
-make eval    # generate evaluation report
+# Tier 1 full download (2018–2023, resumable)
+make data
+
+# Validate processed outputs
+make validate
+
+# Phase 2 — feature engineering (smoke: 1 month; full: all data, ~30–60 min)
+make features-smoke
+make features
+
+# Run tests
+make test
 ```
 
----
+Processed outputs land in `data/processed/`:
+- `options_chain.parquet` — NIFTY/BANKNIFTY index options (OPTIDX)
+- `underlying_ohlcv.parquet` — NIFTY + BANKNIFTY daily OHLCV
+- `india_vix.parquet` — India VIX with basic features
+- `rates.parquet` — RBI rates (from `data/manual/rbi_rates_seed.csv`)
+- `events_calendar.parquet` — NSE expiries + RBI/Budget/FOMC proximity features
+
+Raw bhav copy CSVs: `data/raw/bhav_copy/{YYYY}/{MM}/`
+
 
 ## Evaluation Targets
 

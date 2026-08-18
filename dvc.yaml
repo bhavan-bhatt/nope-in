@@ -1,0 +1,58 @@
+stages:
+  fetch-bhav:
+    cmd: .venv/bin/python scripts/01_build_all_data.py pipeline.skip_bhav_download=false pipeline.validate=false
+    deps:
+      - src/nope_in/data/fetchers/bhav_copy_fetcher.py
+      - configs/config.yaml
+    outs:
+      - data/raw/bhav_copy
+
+  fetch-indices:
+    cmd: .venv/bin/python -c "from nope_in.data.pipeline import run_indices_only; run_indices_only()"
+    deps:
+      - src/nope_in/data/fetchers/yfinance_fetcher.py
+    outs:
+      - data/raw/ohlcv
+      - data/raw/vix
+
+  build-rates:
+    cmd: .venv/bin/python -c "from nope_in.data.pipeline import run_rates_only; run_rates_only()"
+    deps:
+      - src/nope_in/data/fetchers/rbi_rates_fetcher.py
+      - data/manual/rbi_rates_seed.csv
+    outs:
+      - data/processed/rates.parquet
+
+  build-events:
+    cmd: .venv/bin/python -c "from nope_in.data.pipeline import run_events_only; run_events_only()"
+    deps:
+      - src/nope_in/data/fetchers/events_calendar_fetcher.py
+      - data/manual/events_calendar_seed.csv
+    outs:
+      - data/processed/events_calendar.parquet
+
+  merge-options:
+    cmd: .venv/bin/python -c "from nope_in.data.pipeline import run_merge_only; run_merge_only()"
+    deps:
+      - data/raw/bhav_copy
+    outs:
+      - data/processed/options_chain.parquet
+
+  build-features:
+    cmd: .venv/bin/python -m nope_in.features.pipeline
+    deps:
+      - data/processed/options_chain.parquet
+      - data/processed/rates.parquet
+      - data/processed/underlying_ohlcv.parquet
+      - data/processed/india_vix.parquet
+      - data/processed/events_calendar.parquet
+      - src/nope_in/features/bsm.py
+      - src/nope_in/features/vol_surface.py
+      - src/nope_in/features/surface_cnn.py
+      - src/nope_in/features/feature_store.py
+    outs:
+      - data/features/train.parquet
+      - data/features/val.parquet
+      - data/features/test.parquet
+      - artifacts/feature_scaler.pkl
+      - artifacts/feature_metadata.json

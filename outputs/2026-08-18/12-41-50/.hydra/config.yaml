@@ -1,0 +1,29 @@
+data:
+  start_date: '2018-01-01'
+  end_date: '2023-12-31'
+  symbols:
+  - NIFTY
+  - BANKNIFTY
+  bhav:
+    delay_seconds: 1.0
+    max_retries: 3
+  yfinance:
+    indices:
+    - symbol: ^NSEI
+      name: NIFTY
+    - symbol: ^NSEBANK
+      name: BANKNIFTY
+    - symbol: ^INDIAVIX
+      name: INDIAVIX
+  paths:
+    raw_dir: data/raw
+    manual_dir: data/manual
+    processed_dir: data/processed
+pipeline:
+  validate: true
+  skip_bhav_download: false
+features:
+  train_end: '2021-12-31'
+  val_end: '2022-12-31'
+  cnn_epochs: 200
+  feature_groups: null

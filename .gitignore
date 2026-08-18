@@ -39,6 +39,7 @@ data/features/
 data/manual/*.csv
 data/manual/*.parquet
 !data/manual/README.md
+!data/manual/*_seed.csv
 
 # DVC
 .dvc/cache/
